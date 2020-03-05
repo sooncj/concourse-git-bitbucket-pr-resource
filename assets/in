@@ -19,6 +19,7 @@ password="$(jq -r '.source.password // ""' < "${payload}")"
 project="$(jq -r '.source.project // ""' < "${payload}")"
 repository="$(jq -r '.source.repository // ""' < "${payload}")"
 git="$(jq -r '.source.git // ""' < "${payload}")"
+submodule_recursive="$(jq -r '.params.submodule_recursive // true')"
 # params
 skip_download="$(jq -r '.params.skip_download // false' < "${payload}")"
 # version
@@ -50,8 +51,10 @@ fi
 pr=$(mktemp /tmp/resource.XXXXXX)
 curl -s --fail -u "${username}:${password}" "${uri}" > "${pr}"
 
-git_payload=$(echo "${git}" | jq --argjson version "${version}" '
-    {source: (. * {branch: $version.branch})} + {version: {ref: $version.commit}}
+git_payload=$(echo "${git}" | jq --argjson version "${version}" --arg recur "${submodule_recursive}" '
+    {source: (. * {branch: $version.branch})}
+    + {version: {ref: $version.commit}}
+    + {params: {submodule_recursive: $recur}}
 ')
 
 resource_path="${@%/}"
