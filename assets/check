@@ -21,6 +21,7 @@ changes_limit=$(jq -r '.source.changes_limit // 100' < ${payload})
 source_branch=$(jq -r '.source.branch // ""' < ${payload})
 paths=$(jq -r '.source.paths // ""' < ${payload})
 direction=$(jq -r '.source.direction // ""' < ${payload})
+exclude_title=$(jq -r '.source.exclude_title // "false"' < ${payload})
 
 # version
 version_updated_at=$(jq -r '.version.updated_at // 0' < ${payload})
@@ -94,10 +95,11 @@ if [[ "$bitbucket_type" == "server" ]]; then
 
     echo "${prs}" | jq -r 'first | .updated_at' > /tmp/pr-last-updated-at
 
-    echo "${prs}" | jq --argjson version_updated_at "${version_updated_at}" '
+    echo "${prs}" | jq --argjson version_updated_at "${version_updated_at}" --argjson exclude_title "${exclude_title}" '
         map(. + {updated_at: .updated_at|tonumber})
         | map(select(.updated_at >= $version_updated_at))
         | map(select(.title | ascii_downcase | contains("wip") == false))
+        | if $exclude_title then map(del(.title)) else . end
         | sort_by(.updated_at)
         | .
         | map(del(.updated_at))' >&3
@@ -141,6 +143,7 @@ elif [[ "$bitbucket_type" == "cloud" ]]; then
     # take the list of PRs | filter out containing "wip" in title | sort by update-date of commits | remove the date | pick latest PR, wrap as array for concourse
     jq -n --argjson prs "${prs}" '[ $prs
         | map(select(if .title | test("wip"; "i") then false else true end))
+        | if $exclude_title then map(del(.title)) else . end
         | sort_by(.updated_at)
         | map(del(.updated_at))
         | .[-1] ]' >&3
